@@ -55,7 +55,7 @@ function setupWebViewJavascriptBridge(callback) {
 }
 ```
 
-4) Finally, call `setupWebViewJavascriptBridge` and then use the bridge to register handlers and call ObjC handlers:
+4) Finally, call `setupWebViewJavascriptBridge` and then use the bridge to register handlers and call Java handlers:
 
 
 ```javascript
@@ -87,6 +87,7 @@ API Reference
 ##### `public void registerHandler(String handlerName, WVJBHandler handler)`
 
 Register a handler called `handlerName`. The javascript can then call this handler with `WebViewJavascriptBridge.callHandler("handlerName")`.
+
 
 ##### `public void callHandler(String handlerName)`
 ##### `public void callHandler(String handlerName, Object data)`
