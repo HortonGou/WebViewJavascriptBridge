@@ -105,15 +105,24 @@ public class WVJBWebViewClient extends WebViewClient {
     }
 
     private void dispatchMessage(WVJBMessage message) {
-        String messageJSON = message2Json(message).toString()
-                .replaceAll("\\\\", "\\\\\\\\").replaceAll("\"", "\\\\\"")
-                .replaceAll("\'", "\\\\\'").replaceAll("\n", "\\\\\n")
-                .replaceAll("\r", "\\\\\r").replaceAll("\f", "\\\\\f");
+        String messageJSON = doubleEscapeString(message2Json(message).toString());
 
         Log.d(TAG, "SEND:" + messageJSON);
 
         executeJavascript("WebViewJavascriptBridge._handleMessageFromJava('"
                 + messageJSON + "');");
+    }
+
+
+    private String doubleEscapeString(String javascript) {
+        String result;
+        result = javascript.replace("\\", "\\\\");
+        result = result.replace("\"", "\\\"");
+        result = result.replace("\'", "\\\'");
+        result = result.replace("\n", "\\n");
+        result = result.replace("\r", "\\r");
+        result = result.replace("\f", "\\f");
+        return result;
     }
 
     private JSONObject message2Json(WVJBMessage message) {
@@ -268,23 +277,23 @@ public class WVJBWebViewClient extends WebViewClient {
         }
     }
 
-    private WVJBMessage json2Message(JSONObject jo) {
+    private WVJBMessage json2Message(JSONObject object) {
         WVJBMessage message = new WVJBMessage();
         try {
-            if (jo.has("callbackId")) {
-                message.callbackId = jo.getString("callbackId");
+            if (object.has("callbackId")) {
+                message.callbackId = object.getString("callbackId");
             }
-            if (jo.has("data")) {
-                message.data = jo.get("data");
+            if (object.has("data")) {
+                message.data = object.get("data");
             }
-            if (jo.has("handlerName")) {
-                message.handlerName = jo.getString("handlerName");
+            if (object.has("handlerName")) {
+                message.handlerName = object.getString("handlerName");
             }
-            if (jo.has("responseId")) {
-                message.responseId = jo.getString("responseId");
+            if (object.has("responseId")) {
+                message.responseId = object.getString("responseId");
             }
-            if (jo.has("responseData")) {
-                message.responseData = jo.get("responseData");
+            if (object.has("responseData")) {
+                message.responseData = object.get("responseData");
             }
         } catch (JSONException e) {
             e.printStackTrace();
