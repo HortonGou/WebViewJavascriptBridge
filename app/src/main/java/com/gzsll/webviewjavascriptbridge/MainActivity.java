@@ -9,6 +9,8 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.Toast;
 
+import com.gzsll.bridge.WVJBWebViewClient;
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "WebViewJavascriptBridge";

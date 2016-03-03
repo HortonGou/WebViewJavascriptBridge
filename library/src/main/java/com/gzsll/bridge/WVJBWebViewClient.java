@@ -1,4 +1,4 @@
-package com.gzsll.webviewjavascriptbridge;
+package com.gzsll.bridge;
 
 import android.os.Build;
 import android.text.TextUtils;
