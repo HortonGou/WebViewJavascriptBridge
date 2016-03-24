@@ -153,7 +153,7 @@ public class WVJBWebViewClient extends WebViewClient {
         executeJavascript(script, null);
     }
 
-    public void executeJavascript(String script,
+    public void executeJavascript(final String script,
                                   final JavascriptCallback callback) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             webView.evaluateJavascript(script, new ValueCallback<String>() {
@@ -172,10 +172,20 @@ public class WVJBWebViewClient extends WebViewClient {
         } else {
             if (callback != null) {
                 myInterface.addCallback(++uniqueId + "", callback);
-                webView.loadUrl("javascript:window." + INTERFACE
-                        + ".onResultForScript(" + uniqueId + "," + script + ")");
+                webView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.loadUrl("javascript:window." + INTERFACE
+                                + ".onResultForScript(" + uniqueId + "," + script + ")");
+                    }
+                });
             } else {
-                webView.loadUrl("javascript:" + script);
+                webView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.loadUrl("javascript:" + script);
+                    }
+                });
             }
         }
     }
