@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Created by sll on 2016/3/1.
@@ -165,7 +167,7 @@ public class WVJBWebViewClient extends WebViewClient {
                             value = value.substring(1, value.length() - 1)
                                     .replaceAll("\\\\", "");
                         }
-                        callback.onReceiveValue(value);
+                        callback.onReceiveValue(decode(value));
                     }
                 }
             });
@@ -188,6 +190,19 @@ public class WVJBWebViewClient extends WebViewClient {
                 });
             }
         }
+    }
+
+    static final Pattern reUnicode = Pattern.compile("u([0-9a-zA-Z]{4})");
+
+    private String decode(String s) {
+        Matcher m = reUnicode.matcher(s);
+        StringBuffer sb = new StringBuffer(s.length());
+        while (m.find()) {
+            m.appendReplacement(sb,
+                    Character.toString((char) Integer.parseInt(m.group(1), 16)));
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 
     @Override
