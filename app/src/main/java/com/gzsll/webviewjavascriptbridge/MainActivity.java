@@ -2,38 +2,35 @@ package com.gzsll.webviewjavascriptbridge;
 
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.View;
-import android.webkit.ConsoleMessage;
-import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.Toast;
 
-import com.gzsll.bridge.WVJBWebViewClient;
+import com.gzsll.jsbridge.WVJBChromeClient;
+import com.gzsll.jsbridge.WVJBWebView;
+import com.gzsll.jsbridge.WVJBWebViewClient;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "WebViewJavascriptBridge";
 
 
-    private WebView webView;
-    private WVJBWebViewClient webViewClient;
+    private WVJBWebView webView;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        webView = (WebView) findViewById(R.id.webView);
-        webView.getSettings().setJavaScriptEnabled(true);
+        webView = (WVJBWebView) findViewById(R.id.webView);
         webView.loadUrl("file:///android_asset/ExampleApp.html");
-        webViewClient = new MyWebViewClient(webView);
-        webView.setWebChromeClient(new MyWebChromeClient());
+        webView.setWebViewClient(new CustomWebViewClient(webView));
+        webView.setWebChromeClient(new CustomWebChromeClient(webView));
 
         findViewById(R.id.call).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                webViewClient.callHandler("testJavascriptHandler", "{\"greetingFromJava\": \"Hi there, JS!\" }", new WVJBWebViewClient.WVJBResponseCallback() {
+                webView.callHandler("testJavascriptHandler", "{\"greetingFromJava\": \"Hi there, JS!\" }", new WVJBWebView.WVJBResponseCallback() {
 
                     @Override
                     public void callback(Object data) {
@@ -43,38 +40,57 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        webView.registerHandler("testJavaCallback", new WVJBWebView.WVJBHandler() {
+
+            @Override
+            public void request(Object data, WVJBWebView.WVJBResponseCallback callback) {
+                Toast.makeText(MainActivity.this, "testJavaCallback called:" + data, Toast.LENGTH_LONG).show();
+                callback.callback("Response from testJavaCallback!");
+            }
+        });
+
+        webView.callHandler("testJavascriptHandler", "{\"foo\":\"before ready\" }", new WVJBWebView.WVJBResponseCallback() {
+
+            @Override
+            public void callback(Object data) {
+                Toast.makeText(MainActivity.this, "Java call testJavascriptHandler got response! :" + data, Toast.LENGTH_LONG).show();
+            }
+        });
+
     }
 
-    public class MyWebViewClient extends WVJBWebViewClient {
+    public class CustomWebViewClient extends WVJBWebViewClient {
 
-        public MyWebViewClient(WebView webView) {
+        public CustomWebViewClient(WVJBWebView webView) {
             super(webView);
-            registerHandler("testJavaCallback", new WVJBWebViewClient.WVJBHandler() {
-
-                @Override
-                public void request(Object data, WVJBResponseCallback callback) {
-                    Toast.makeText(MainActivity.this, "testJavaCallback called:" + data, Toast.LENGTH_LONG).show();
-                    callback.callback("Response from testJavaCallback!");
-                }
-            });
-
-            callHandler("testJavascriptHandler", "{\"foo\":\"before ready\" }", new WVJBResponseCallback() {
-
-                @Override
-                public void callback(Object data) {
-                    Toast.makeText(MainActivity.this, "Java call testJavascriptHandler got response! :" + data, Toast.LENGTH_LONG).show();
-                }
-            });
         }
 
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            //  do your work here
+            // ...
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            //  do your work here
+            // ...
+            return super.shouldOverrideUrlLoading(view, url);
+        }
     }
 
 
-    class MyWebChromeClient extends WebChromeClient {
+    class CustomWebChromeClient extends WVJBChromeClient {
+        public CustomWebChromeClient(WVJBWebView wvjbWebView) {
+            super(wvjbWebView);
+        }
+
         @Override
-        public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-            Log.d(TAG, "onConsoleMessage:" + consoleMessage.message() + ":" + consoleMessage.lineNumber());
-            return true;
+        public void onProgressChanged(WebView view, int newProgress) {
+            super.onProgressChanged(view, newProgress);
+            // do your work here
+            // ...
         }
     }
 

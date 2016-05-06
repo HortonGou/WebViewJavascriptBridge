@@ -2,43 +2,38 @@
 
 ## Usage ##
 
-1) Add "Assets/WebViewJavascript.js" and "WVJBWebViewClient.java" to your project.
+1) Add following to the build.gradle of your project.
 
-2) Set up the Android side
+```
+	dependencies {
+		compile 'com.gzsll.jsbridge:library:1.0.0'
+	}
+```
 
+2) Add `com.gzsll.jsbridge.WVJBWebView` to your layout, it is inherited from `WebView`.
 
 ```java
- webViewClient = new MyWebViewClient(webView);
+       webView.registerHandler("testJavaCallback", new WVJBWebView.WVJBHandler() {
+
+            @Override
+            public void request(Object data, WVJBWebView.WVJBResponseCallback callback) {
+                Toast.makeText(MainActivity.this, "testJavaCallback called:" + data, Toast.LENGTH_LONG).show();
+                callback.callback("Response from testJavaCallback!");
+            }
+        });
+
+        webView.callHandler("testJavascriptHandler", "{\"foo\":\"before ready\" }", new WVJBWebView.WVJBResponseCallback() {
+
+            @Override
+            public void callback(Object data) {
+                Toast.makeText(MainActivity.this, "Java call testJavascriptHandler got response! :" + data, Toast.LENGTH_LONG).show();
+            }
+        });
 ```
 
 ...
 
 
-```java
-    public class MyWebViewClient extends WVJBWebViewClient {
-
-        public MyWebViewClient(WebView webView) {
-            super(webView);
-            registerHandler("testJavaCallback", new WVJBWebViewClient.WVJBHandler() {
-
-                @Override
-                public void request(Object data, WVJBResponseCallback callback) {
-                    Toast.makeText(MainActivity.this, "testJavaCallback called:" + data, Toast.LENGTH_LONG).show();
-                    callback.callback("Response from testJavaCallback!");
-                }
-            });
-
-            callHandler("testJavascriptHandler", "{\"foo\":\"before ready\" }", new WVJBResponseCallback() {
-
-                @Override
-                public void callback(Object data) {
-                    Toast.makeText(MainActivity.this, "Java call testJavascriptHandler got response! :" + data, Toast.LENGTH_LONG).show();
-                }
-            });
-        }
-
-    }
-```
 
 3) Copy and paste `setupWebViewJavascriptBridge` into your JS:
 
@@ -75,7 +70,47 @@ function setupWebViewJavascriptBridge(callback) {
 	})
 ```
 
-5) Read Demo for more detail.
+5) If you want to use `WebChromeClient` or `WebViewClient`,you must use like this
+ ```java
+    public class CustomWebViewClient extends WVJBWebViewClient {
+
+         public CustomWebViewClient(WVJBWebView webView) {
+             super(webView);
+         }
+
+         @Override
+         public void onPageFinished(WebView view, String url) {
+             super.onPageFinished(view, url);
+             //  do your work here
+             // ...
+         }
+
+         @Override
+         public boolean shouldOverrideUrlLoading(WebView view, String url) {
+             return super.shouldOverrideUrlLoading(view, url);
+         }
+     }
+
+
+ ```
+
+ ```java
+    public class CustomWebChromeClient extends WVJBChromeClient {
+         public CustomWebChromeClient(WVJBWebView webView) {
+             super(webView);
+         }
+
+         @Override
+         public void onProgressChanged(WebView view, int newProgress) {
+             super.onProgressChanged(view, newProgress);
+             // do your work here
+             // ...
+         }
+     }
+
+ ```
+
+6) Read Demo for more detail.
 
 
 

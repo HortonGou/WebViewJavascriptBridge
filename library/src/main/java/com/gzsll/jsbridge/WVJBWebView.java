@@ -1,12 +1,13 @@
-package com.gzsll.bridge;
+package com.gzsll.jsbridge;
 
+import android.content.Context;
 import android.os.Build;
 import android.text.TextUtils;
+import android.util.AttributeSet;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -22,21 +23,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Created by sll on 2016/3/1.
+ * Created by sll on 2016/5/5.
  */
-public class WVJBWebViewClient extends WebViewClient {
-    private static final String TAG = "WebViewJavascriptClient";
-    private static final String INTERFACE = TAG + "Interface";
-    private static final String SCHEME = "wvjbscheme";
-    private static final String MESSAGE = "__WVJB_QUEUE_MESSAGE__";
+public class WVJBWebView extends WebView {
 
-    private WebView webView;
-
-    private ArrayList<WVJBMessage> messageQueue = null;
-    private Map<String, WVJBResponseCallback> responseCallbacks = null;
-    private Map<String, WVJBHandler> messageHandlers = null;
+    private ArrayList<WVJBMessage> messageQueue = new ArrayList<>();
+    private Map<String, WVJBResponseCallback> responseCallbacks = new HashMap<>();
+    private Map<String, WVJBHandler> messageHandlers = new HashMap<>();
     private long uniqueId = 0;
     private MyJavascriptInterface myInterface = new MyJavascriptInterface();
+    private String script;
+    private boolean isExecuteLocalJs = false;
 
 
     public interface WVJBResponseCallback {
@@ -47,14 +44,27 @@ public class WVJBWebViewClient extends WebViewClient {
         void request(Object data, WVJBResponseCallback callback);
     }
 
-    public WVJBWebViewClient(WebView webView) {
-        this.webView = webView;
-        this.webView.getSettings().setJavaScriptEnabled(true);
-        this.webView.setWebViewClient(this);
-        this.webView.addJavascriptInterface(myInterface, INTERFACE);
-        this.responseCallbacks = new HashMap<>();
-        this.messageHandlers = new HashMap<>();
-        this.messageQueue = new ArrayList<>();
+    public WVJBWebView(Context context) {
+        super(context);
+        init();
+    }
+
+    public WVJBWebView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        init();
+    }
+
+    public WVJBWebView(Context context, AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
+        init();
+    }
+
+
+    private void init() {
+        getSettings().setJavaScriptEnabled(true);
+        addJavascriptInterface(myInterface, WVJBConstants.INTERFACE);
+        setWebViewClient(new WVJBWebViewClient(this));
+        setWebChromeClient(new WVJBChromeClient(this));
     }
 
 
@@ -72,7 +82,7 @@ public class WVJBWebViewClient extends WebViewClient {
     }
 
     public void registerHandler(String handlerName, WVJBHandler handler) {
-        if (handlerName == null || handlerName.length() == 0 || handler == null)
+        if (TextUtils.isEmpty(handlerName) || handler == null)
             return;
         messageHandlers.put(handlerName, handler);
     }
@@ -106,11 +116,8 @@ public class WVJBWebViewClient extends WebViewClient {
         }
     }
 
-    private void dispatchMessage(WVJBMessage message) {
+    public void dispatchMessage(WVJBMessage message) {
         String messageJSON = doubleEscapeString(message2Json(message).toString());
-
-        Log.d(TAG, "SEND:" + messageJSON);
-
         executeJavascript("WebViewJavascriptBridge._handleMessageFromJava('"
                 + messageJSON + "');");
     }
@@ -151,104 +158,8 @@ public class WVJBWebViewClient extends WebViewClient {
         return object;
     }
 
-    public void executeJavascript(String script) {
-        executeJavascript(script, null);
-    }
 
-    public void executeJavascript(final String script,
-                                  final JavascriptCallback callback) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(script, new ValueCallback<String>() {
-                @Override
-                public void onReceiveValue(String value) {
-                    if (callback != null) {
-                        if (value != null && value.startsWith("\"")
-                                && value.endsWith("\"")) {
-                            value = value.substring(1, value.length() - 1)
-                                    .replaceAll("\\\\", "");
-                        }
-                        callback.onReceiveValue(decode(value));
-                    }
-                }
-            });
-        } else {
-            if (callback != null) {
-                myInterface.addCallback(++uniqueId + "", callback);
-                webView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        webView.loadUrl("javascript:window." + INTERFACE
-                                + ".onResultForScript(" + uniqueId + "," + script + ")");
-                    }
-                });
-            } else {
-                webView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        webView.loadUrl("javascript:" + script);
-                    }
-                });
-            }
-        }
-    }
-
-    static final Pattern reUnicode = Pattern.compile("u([0-9a-zA-Z]{4})");
-
-    private String decode(String s) {
-        Matcher m = reUnicode.matcher(s);
-        StringBuffer sb = new StringBuffer(s.length());
-        while (m.find()) {
-            m.appendReplacement(sb,
-                    Character.toString((char) Integer.parseInt(m.group(1), 16)));
-        }
-        m.appendTail(sb);
-        return sb.toString();
-    }
-
-    @Override
-    public void onPageFinished(WebView view, String url) {
-        try {
-            InputStream in = webView.getResources().getAssets().open("WebViewJavascriptBridge.js");
-            String script = convertStreamToString(in);
-            executeJavascript(script);
-            if (messageQueue != null) {
-                for (int i = 0; i < messageQueue.size(); i++) {
-                    dispatchMessage(messageQueue.get(i));
-                }
-                messageQueue = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        super.onPageFinished(view, url);
-
-    }
-
-
-    @Override
-    public boolean shouldOverrideUrlLoading(WebView view, String url) {
-        if (url.startsWith(SCHEME)) {
-            if (url.indexOf(MESSAGE) > 0) {
-                flushMessageQueue();
-            }
-            return true;
-        }
-        return super.shouldOverrideUrlLoading(view, url);
-    }
-
-    private String convertStreamToString(InputStream is) {
-        String s = "";
-        try {
-            Scanner scanner = new Scanner(is, "UTF-8").useDelimiter("\\A");
-            if (scanner.hasNext()) s = scanner.next();
-            is.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return s;
-    }
-
-    private void flushMessageQueue() {
+    public void flushMessageQueue() {
         String script = "WebViewJavascriptBridge._fetchQueue()";
         executeJavascript(script, new JavascriptCallback() {
             public void onReceiveValue(String messageQueueString) {
@@ -264,8 +175,6 @@ public class WVJBWebViewClient extends WebViewClient {
             JSONArray messages = new JSONArray(messageQueueString);
             for (int i = 0; i < messages.length(); i++) {
                 JSONObject jo = messages.getJSONObject(i);
-                Log.d(TAG, "processMessageQueue:" + jo);
-
                 WVJBMessage message = json2Message(jo);
                 if (message.responseId != null) {
                     WVJBResponseCallback responseCallback = responseCallbacks
@@ -293,11 +202,11 @@ public class WVJBWebViewClient extends WebViewClient {
                     if (handler != null) {
                         handler.request(message.data, responseCallback);
                     } else {
-                        Log.e(TAG, "No handler for message from JS:" + message.handlerName);
+                        Log.e(WVJBConstants.TAG, "No handler for message from JS:" + message.handlerName);
                     }
                 }
             }
-        } catch (JSONException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -327,16 +236,102 @@ public class WVJBWebViewClient extends WebViewClient {
     }
 
 
-    private class WVJBMessage {
-        Object data;
-        String callbackId;
-        String handlerName;
-        String responseId;
-        Object responseData;
+    public void loadLocalJs() {
+        try {
+            if (TextUtils.isEmpty(script)) {
+                InputStream in = getResources().getAssets().open("WebViewJavascriptBridge.js");
+                script = convertStreamToString(in);
+            }
+            executeJavascript(script);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
+
+    private String convertStreamToString(InputStream is) {
+        String s = "";
+        try {
+            Scanner scanner = new Scanner(is, "UTF-8").useDelimiter("\\A");
+            if (scanner.hasNext()) s = scanner.next();
+            is.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return s;
+    }
+
+    public void executeJavascript(String script) {
+        executeJavascript(script, null);
+    }
+
+    public void executeJavascript(final String script,
+                                  final JavascriptCallback callback) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            evaluateJavascript(script, new ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String value) {
+                    if (callback != null) {
+                        if (value != null && value.startsWith("\"")
+                                && value.endsWith("\"")) {
+                            value = value.substring(1, value.length() - 1)
+                                    .replaceAll("\\\\", "");
+                        }
+                        callback.onReceiveValue(decode(value));
+                    }
+                }
+            });
+        } else {
+            if (callback != null) {
+                myInterface.addCallback(++uniqueId + "", callback);
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        loadUrl("javascript:window." + WVJBConstants.INTERFACE
+                                + ".onResultForScript(" + uniqueId + "," + script + ")");
+                    }
+                });
+            } else {
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        loadUrl("javascript:" + script);
+                    }
+                });
+            }
+        }
+    }
+
+    static final Pattern reUnicode = Pattern.compile("u([0-9a-zA-Z]{4})");
+
+    private String decode(String s) {
+        Matcher m = reUnicode.matcher(s);
+        StringBuffer sb = new StringBuffer(s.length());
+        while (m.find()) {
+            m.appendReplacement(sb,
+                    Character.toString((char) Integer.parseInt(m.group(1), 16)));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+
+    public void executeMessage() {
+        if (!isExecuteLocalJs) {
+            loadLocalJs();
+            if (messageQueue != null) {
+                for (WVJBMessage message : messageQueue) {
+                    dispatchMessage(message);
+                }
+                messageQueue = null;
+            }
+            isExecuteLocalJs = true;
+        }
+    }
+
+
     private class MyJavascriptInterface {
-        Map<String, JavascriptCallback> map = new HashMap<String, JavascriptCallback>();
+        Map<String, JavascriptCallback> map = new HashMap<>();
 
         public void addCallback(String key, JavascriptCallback callback) {
             map.put(key, callback);
@@ -344,7 +339,6 @@ public class WVJBWebViewClient extends WebViewClient {
 
         @JavascriptInterface
         public void onResultForScript(String key, String value) {
-            Log.i(TAG, "onResultForScript: " + value);
             JavascriptCallback callback = map.remove(key);
             if (callback != null)
                 callback.onReceiveValue(value);
@@ -354,5 +348,15 @@ public class WVJBWebViewClient extends WebViewClient {
     public interface JavascriptCallback {
         void onReceiveValue(String value);
     }
+
+
+    public boolean isExecuteLocalJs() {
+        return isExecuteLocalJs;
+    }
+
+    public void setExecuteLocalJs(boolean executeLocalJs) {
+        isExecuteLocalJs = executeLocalJs;
+    }
+
 
 }

@@ -1,4 +1,4 @@
-package com.gzsll.bridge;
+package com.gzsll.jsbridge;
 
 import org.junit.Test;
 
