@@ -6,7 +6,7 @@
 
 ```
 	dependencies {
-		compile 'com.gzsll.jsbridge:library:1.0.0'
+		compile 'com.gzsll.jsbridge:library:1.0.1'
 	}
 ```
 
