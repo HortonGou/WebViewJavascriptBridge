@@ -8,19 +8,16 @@ import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Created by sll on 2016/5/5.
@@ -302,17 +299,11 @@ public class WVJBWebView extends WebView {
         }
     }
 
-    static final Pattern reUnicode = Pattern.compile("u([0-9a-zA-Z]{4})");
+
 
     private String decode(String s) {
-        Matcher m = reUnicode.matcher(s);
-        StringBuffer sb = new StringBuffer(s.length());
-        while (m.find()) {
-            m.appendReplacement(sb,
-                    Character.toString((char) Integer.parseInt(m.group(1), 16)));
-        }
-        m.appendTail(sb);
-        return sb.toString();
+        byte[] bytes = s.getBytes(Charset.forName("UTF-8"));
+        return new String(bytes, Charset.forName("UTF-8"));
     }
 
 
