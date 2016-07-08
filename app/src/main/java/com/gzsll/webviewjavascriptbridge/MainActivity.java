@@ -6,7 +6,6 @@ import android.view.View;
 import android.webkit.WebView;
 import android.widget.Toast;
 
-import com.gzsll.jsbridge.WVJBChromeClient;
 import com.gzsll.jsbridge.WVJBWebView;
 import com.gzsll.jsbridge.WVJBWebViewClient;
 
@@ -66,13 +65,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
-        public void onPageFinished(WebView view, String url) {
-            super.onPageFinished(view, url);
-            //  do your work here
-            // ...
-        }
-
-        @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
             //  do your work here
             // ...
@@ -80,18 +72,5 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    class CustomWebChromeClient extends WVJBChromeClient {
-        public CustomWebChromeClient(WVJBWebView wvjbWebView) {
-            super(wvjbWebView);
-        }
-
-        @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-            super.onProgressChanged(view, newProgress);
-            // do your work here
-            // ...
-        }
-    }
 
 }

@@ -18,18 +18,16 @@ public class WVJBWebViewClient extends WebViewClient {
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
         if (url.startsWith(WVJBConstants.SCHEME)) {
-            if (url.indexOf(WVJBConstants.MESSAGE) > 0) {
+            if (url.indexOf(WVJBConstants.BRIDGE_LOADED) > 0) {
+                mWVJBWebView.injectJavascriptFile();
+            } else if (url.indexOf(WVJBConstants.MESSAGE) > 0) {
                 mWVJBWebView.flushMessageQueue();
+            } else {
+                Logger.d("UnkownMessage:" + url);
             }
             return true;
         }
         return super.shouldOverrideUrlLoading(view, url);
     }
 
-
-    @Override
-    public void onPageFinished(WebView view, String url) {
-        mWVJBWebView.executeMessage();
-        super.onPageFinished(view, url);
-    }
 }

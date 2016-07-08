@@ -8,16 +8,17 @@ import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 /**
  * Created by sll on 2016/5/5.
@@ -30,7 +31,6 @@ public class WVJBWebView extends WebView {
     private long uniqueId = 0;
     private MyJavascriptInterface myInterface = new MyJavascriptInterface();
     private String script;
-    private boolean isExecuteLocalJs = false;
 
 
     public interface WVJBResponseCallback {
@@ -61,7 +61,6 @@ public class WVJBWebView extends WebView {
         getSettings().setJavaScriptEnabled(true);
         addJavascriptInterface(myInterface, WVJBConstants.INTERFACE);
         setWebViewClient(new WVJBWebViewClient(this));
-        setWebChromeClient(new WVJBChromeClient(this));
     }
 
 
@@ -168,44 +167,48 @@ public class WVJBWebView extends WebView {
     }
 
     private void processMessageQueue(String messageQueueString) {
-        try {
-            JSONArray messages = new JSONArray(messageQueueString);
-            for (int i = 0; i < messages.length(); i++) {
-                JSONObject jo = messages.getJSONObject(i);
-                WVJBMessage message = json2Message(jo);
-                if (message.responseId != null) {
-                    WVJBResponseCallback responseCallback = responseCallbacks
-                            .remove(message.responseId);
-                    if (responseCallback != null) {
-                        responseCallback.callback(message.responseData);
-                    }
-                } else {
-                    WVJBResponseCallback responseCallback = null;
-                    if (message.callbackId != null) {
-                        final String callbackId = message.callbackId;
-                        responseCallback = new WVJBResponseCallback() {
-                            @Override
-                            public void callback(Object data) {
-                                WVJBMessage msg = new WVJBMessage();
-                                msg.responseId = callbackId;
-                                msg.responseData = data;
-                                queueMessage(msg);
-                            }
-                        };
-                    }
-
-                    WVJBHandler handler = messageHandlers.get(message.handlerName);
-
-                    if (handler != null) {
-                        handler.request(message.data, responseCallback);
+            if(TextUtils.isEmpty(messageQueueString)){
+                return;
+            }
+            try {
+                JSONArray messages = new JSONArray(messageQueueString);
+                for (int i = 0; i < messages.length(); i++) {
+                    JSONObject jo = messages.getJSONObject(i);
+                    WVJBMessage message = json2Message(jo);
+                    if (message.responseId != null) {
+                        WVJBResponseCallback responseCallback = responseCallbacks
+                                .remove(message.responseId);
+                        if (responseCallback != null) {
+                            responseCallback.callback(message.responseData);
+                        }
                     } else {
-                        Log.e(WVJBConstants.TAG, "No handler for message from JS:" + message.handlerName);
+                        WVJBResponseCallback responseCallback = null;
+                        if (message.callbackId != null) {
+                            final String callbackId = message.callbackId;
+                            responseCallback = new WVJBResponseCallback() {
+                                @Override
+                                public void callback(Object data) {
+                                    WVJBMessage msg = new WVJBMessage();
+                                    msg.responseId = callbackId;
+                                    msg.responseData = data;
+                                    queueMessage(msg);
+                                }
+                            };
+                        }
+
+                        WVJBHandler handler = messageHandlers.get(message.handlerName);
+
+                        if (handler != null) {
+                            handler.request(message.data, responseCallback);
+                        } else {
+                            Log.e(WVJBConstants.TAG, "No handler for message from JS:" + message.handlerName);
+                        }
                     }
                 }
+            }catch (JSONException exception){
+                exception.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+
     }
 
     private WVJBMessage json2Message(JSONObject object) {
@@ -233,15 +236,21 @@ public class WVJBWebView extends WebView {
     }
 
 
-    public void loadLocalJs() {
+    public void injectJavascriptFile() {
         try {
             if (TextUtils.isEmpty(script)) {
                 InputStream in = getResources().getAssets().open("WebViewJavascriptBridge.js");
                 script = convertStreamToString(in);
             }
             executeJavascript(script);
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
+        }
+        if (messageQueue != null) {
+            for (WVJBMessage message : messageQueue) {
+                dispatchMessage(message);
+            }
+            messageQueue = null;
         }
     }
 
@@ -258,11 +267,11 @@ public class WVJBWebView extends WebView {
         return s;
     }
 
-    public void executeJavascript(String script) {
+    private void executeJavascript(String script) {
         executeJavascript(script, null);
     }
 
-    public void executeJavascript(final String script,
+    private void executeJavascript(final String script,
                                   final JavascriptCallback callback) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             evaluateJavascript(script, new ValueCallback<String>() {
@@ -274,7 +283,7 @@ public class WVJBWebView extends WebView {
                             value = value.substring(1, value.length() - 1)
                                     .replaceAll("\\\\", "");
                         }
-                        callback.onReceiveValue(decode(value));
+                        callback.onReceiveValue(value);
                     }
                 }
             });
@@ -300,27 +309,6 @@ public class WVJBWebView extends WebView {
     }
 
 
-
-    private String decode(String s) {
-        byte[] bytes = s.getBytes(Charset.forName("UTF-8"));
-        return new String(bytes, Charset.forName("UTF-8"));
-    }
-
-
-    public void executeMessage() {
-        if (!isExecuteLocalJs) {
-            loadLocalJs();
-            if (messageQueue != null) {
-                for (WVJBMessage message : messageQueue) {
-                    dispatchMessage(message);
-                }
-                messageQueue = null;
-            }
-            isExecuteLocalJs = true;
-        }
-    }
-
-
     private class MyJavascriptInterface {
         Map<String, JavascriptCallback> map = new HashMap<>();
 
@@ -341,13 +329,6 @@ public class WVJBWebView extends WebView {
     }
 
 
-    public boolean isExecuteLocalJs() {
-        return isExecuteLocalJs;
-    }
-
-    public void setExecuteLocalJs(boolean executeLocalJs) {
-        isExecuteLocalJs = executeLocalJs;
-    }
 
 
 }

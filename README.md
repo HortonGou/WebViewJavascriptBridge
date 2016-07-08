@@ -6,7 +6,7 @@
 
 ```
 	dependencies {
-		compile 'com.gzsll.jsbridge:library:1.0.1'
+		compile 'com.gzsll.jsbridge:library:1.1.0'
 	}
 ```
 
@@ -70,43 +70,21 @@ function setupWebViewJavascriptBridge(callback) {
 	})
 ```
 
-5) If you want to use `WebChromeClient` or `WebViewClient`,you must use like this
+5) If you want to use `WebViewClient`,you must use like this
  ```java
     public class CustomWebViewClient extends WVJBWebViewClient {
 
-         public CustomWebViewClient(WVJBWebView webView) {
-             super(webView);
-         }
+        public CustomWebViewClient(WVJBWebView webView) {
+            super(webView);
+        }
 
-         @Override
-         public void onPageFinished(WebView view, String url) {
-             super.onPageFinished(view, url);
-             //  do your work here
-             // ...
-         }
-
-         @Override
-         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-             return super.shouldOverrideUrlLoading(view, url);
-         }
-     }
-
-
- ```
-
- ```java
-    public class CustomWebChromeClient extends WVJBChromeClient {
-         public CustomWebChromeClient(WVJBWebView webView) {
-             super(webView);
-         }
-
-         @Override
-         public void onProgressChanged(WebView view, int newProgress) {
-             super.onProgressChanged(view, newProgress);
-             // do your work here
-             // ...
-         }
-     }
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            //  do your work here
+            // ...
+            return super.shouldOverrideUrlLoading(view, url);
+        }
+    }
 
  ```
 
