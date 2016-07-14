@@ -24,7 +24,6 @@ public class MainActivity extends AppCompatActivity {
         webView = (WVJBWebView) findViewById(R.id.webView);
         webView.loadUrl("file:///android_asset/ExampleApp.html");
         webView.setWebViewClient(new CustomWebViewClient(webView));
-        webView.setWebChromeClient(new CustomWebChromeClient(webView));
 
         findViewById(R.id.call).setOnClickListener(new View.OnClickListener() {
             @Override
