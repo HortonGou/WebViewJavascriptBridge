@@ -8,10 +8,10 @@ import android.webkit.WebViewClient;
  */
 public class WVJBWebViewClient extends WebViewClient {
 
-    private WVJBWebView mWVJBWebView;
+    private IWebView mWVJBWebView;
 
 
-    public WVJBWebViewClient(WVJBWebView wvjbWebView) {
+    public WVJBWebViewClient(IWebView wvjbWebView) {
         mWVJBWebView = wvjbWebView;
     }
 
@@ -31,3 +31,4 @@ public class WVJBWebViewClient extends WebViewClient {
     }
 
 }
+
