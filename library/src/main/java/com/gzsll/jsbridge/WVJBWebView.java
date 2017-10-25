@@ -8,6 +8,7 @@ import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -15,6 +16,8 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -23,23 +26,15 @@ import java.util.Scanner;
 /**
  * Created by sll on 2016/5/5.
  */
-public class WVJBWebView extends WebView {
+public class WVJBWebView extends WebView implements IWebView {
 
     private ArrayList<WVJBMessage> messageQueue = new ArrayList<>();
-    private Map<String, WVJBResponseCallback> responseCallbacks = new HashMap<>();
-    private Map<String, WVJBHandler> messageHandlers = new HashMap<>();
+    private HashMap<String, WVJBResponseCallback> responseCallbacks = new HashMap<>();
+    private HashMap<String, WVJBHandler> messageHandlers = new HashMap<>();
     private long uniqueId = 0;
     private MyJavascriptInterface myInterface = new MyJavascriptInterface();
     private String script;
 
-
-    public interface WVJBResponseCallback {
-        void callback(Object data);
-    }
-
-    public interface WVJBHandler {
-        void request(Object data, WVJBResponseCallback callback);
-    }
 
     public WVJBWebView(Context context) {
         super(context);
@@ -63,6 +58,23 @@ public class WVJBWebView extends WebView {
         setWebViewClient(new WVJBWebViewClient(this));
     }
 
+    /**
+     * 添加一个浏览器状态监听.
+     * 如果为null 会导致jsbridge失效
+     *
+     * @param client 必须是WVJBWebViewClient的子类
+     */
+    @Override
+    public void setWebViewClient(WebViewClient client) {
+        if (client instanceof WVJBWebViewClient) {
+            super.setWebViewClient(client);
+        } else if (client == null) {
+            super.setWebViewClient(null);
+        } else {
+            throw new IllegalArgumentException(
+                    "the \'client\' must be a subclass of the \'WVJBWebViewClient\'");
+        }
+    }
 
     public void callHandler(String handlerName) {
         callHandler(handlerName, null, null);
@@ -113,6 +125,9 @@ public class WVJBWebView extends WebView {
     }
 
     public void dispatchMessage(WVJBMessage message) {
+        if (!VerifyMD5()) {
+            return;
+        }
         String messageJSON = doubleEscapeString(message2Json(message).toString());
         executeJavascript("WebViewJavascriptBridge._handleMessageFromJava('"
                 + messageJSON + "');");
@@ -167,47 +182,47 @@ public class WVJBWebView extends WebView {
     }
 
     private void processMessageQueue(String messageQueueString) {
-            if(TextUtils.isEmpty(messageQueueString)){
-                return;
-            }
-            try {
-                JSONArray messages = new JSONArray(messageQueueString);
-                for (int i = 0; i < messages.length(); i++) {
-                    JSONObject jo = messages.getJSONObject(i);
-                    WVJBMessage message = json2Message(jo);
-                    if (message.responseId != null) {
-                        WVJBResponseCallback responseCallback = responseCallbacks
-                                .remove(message.responseId);
-                        if (responseCallback != null) {
-                            responseCallback.callback(message.responseData);
-                        }
+        if (TextUtils.isEmpty(messageQueueString)) {
+            return;
+        }
+        try {
+            JSONArray messages = new JSONArray(messageQueueString);
+            for (int i = 0; i < messages.length(); i++) {
+                JSONObject jo = messages.getJSONObject(i);
+                WVJBMessage message = json2Message(jo);
+                if (message.responseId != null) {
+                    WVJBResponseCallback responseCallback = responseCallbacks
+                            .remove(message.responseId);
+                    if (responseCallback != null) {
+                        responseCallback.callback(message.responseData);
+                    }
+                } else {
+                    WVJBResponseCallback responseCallback = null;
+                    if (message.callbackId != null) {
+                        final String callbackId = message.callbackId;
+                        responseCallback = new WVJBResponseCallback() {
+                            @Override
+                            public void callback(Object data) {
+                                WVJBMessage msg = new WVJBMessage();
+                                msg.responseId = callbackId;
+                                msg.responseData = data;
+                                queueMessage(msg);
+                            }
+                        };
+                    }
+
+                    WVJBHandler handler = messageHandlers.get(message.handlerName);
+
+                    if (handler != null) {
+                        handler.request(message.data, responseCallback);
                     } else {
-                        WVJBResponseCallback responseCallback = null;
-                        if (message.callbackId != null) {
-                            final String callbackId = message.callbackId;
-                            responseCallback = new WVJBResponseCallback() {
-                                @Override
-                                public void callback(Object data) {
-                                    WVJBMessage msg = new WVJBMessage();
-                                    msg.responseId = callbackId;
-                                    msg.responseData = data;
-                                    queueMessage(msg);
-                                }
-                            };
-                        }
-
-                        WVJBHandler handler = messageHandlers.get(message.handlerName);
-
-                        if (handler != null) {
-                            handler.request(message.data, responseCallback);
-                        } else {
-                            Log.e(WVJBConstants.TAG, "No handler for message from JS:" + message.handlerName);
-                        }
+                        Log.e(WVJBConstants.TAG, "No handler for message from JS:" + message.handlerName);
                     }
                 }
-            }catch (JSONException exception){
-                exception.printStackTrace();
             }
+        } catch (JSONException exception) {
+            exception.printStackTrace();
+        }
 
     }
 
@@ -235,7 +250,7 @@ public class WVJBWebView extends WebView {
         return message;
     }
 
-
+    @Override
     public void injectJavascriptFile() {
         try {
             if (TextUtils.isEmpty(script)) {
@@ -272,7 +287,7 @@ public class WVJBWebView extends WebView {
     }
 
     private void executeJavascript(final String script,
-                                  final JavascriptCallback callback) {
+                                   final JavascriptCallback callback) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             evaluateJavascript(script, new ValueCallback<String>() {
                 @Override
@@ -280,8 +295,10 @@ public class WVJBWebView extends WebView {
                     if (callback != null) {
                         if (value != null && value.startsWith("\"")
                                 && value.endsWith("\"")) {
-                            value = value.substring(1, value.length() - 1)
-                                    .replaceAll("\\\\", "");
+                            value = value.substring(1, value.length() - 1).replace("\\\\", "\\")
+                                    .replace("\\\"", "\"")
+                                    .replace("\\\'", "\'");
+
                         }
                         callback.onReceiveValue(value);
                     }
@@ -324,11 +341,32 @@ public class WVJBWebView extends WebView {
         }
     }
 
-    public interface JavascriptCallback {
-        void onReceiveValue(String value);
+
+    public boolean VerifyMD5() {
+        String mMD5String = getMD5(getContext());
+        if ("b7ec11ed70b8a5862b2efbb41171094d".equals(mMD5String)) {
+            return true;
+        }
+        return false;
     }
 
-
-
-
+    public static String getMD5(Context context) {
+        MessageDigest digest = null;
+        InputStream in = null;
+        byte buffer[] = new byte[1024];
+        int len;
+        try {
+            digest = MessageDigest.getInstance("MD5");
+            in = context.getResources().getAssets().open("WebViewJavascriptBridge.js");
+            while ((len = in.read(buffer, 0, 1024)) != -1) {
+                digest.update(buffer, 0, len);
+            }
+            in.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        BigInteger bigInt = new BigInteger(1, digest.digest());
+        return bigInt.toString(16);
+    }
 }
